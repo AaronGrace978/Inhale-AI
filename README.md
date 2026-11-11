@@ -1,4 +1,5 @@
 # Kirby
+<('-'<)
 
 Kirby is a local-first desktop runtime. Drop a behavioral markdown playbook on it. The main process strips foreign personas, shards the remaining mechanics, and mounts at most two of them under a locked identity core. A Plan → Act → Verify loop can rewrite a shard only when an objective gate agrees.
 

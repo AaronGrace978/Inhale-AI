@@ -3,7 +3,7 @@ import { humanError } from './format'
 import { useAppState } from './state'
 import { DiffPane } from './components/DiffPane'
 import { Dropzone } from './components/Dropzone'
-import { KirbyMark } from './components/KirbyMark'
+import { InhaleMark } from './components/InhaleMark'
 import { LoopInspector } from './components/LoopInspector'
 import { Pipeline } from './components/Pipeline'
 import { PromptDock } from './components/PromptDock'
@@ -12,11 +12,17 @@ import { ShardReader } from './components/ShardReader'
 import { SkillGraph } from './components/SkillGraph'
 import { TokenGauge } from './components/TokenGauge'
 
+function folderName(path: string | null): string {
+  if (!path) return 'Open a folder'
+  const parts = path.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] || path
+}
+
 export function App() {
   const { state, dispatch } = useAppState()
 
   useEffect(() => {
-    const bridge = window.kirby
+    const bridge = window.inhale
     if (!bridge) return
     void bridge
       .getConfig()
@@ -25,6 +31,10 @@ export function App() {
     void bridge
       .getGraph()
       .then((graph) => dispatch({ type: 'graph', graph }))
+      .catch((error: unknown) => dispatch({ type: 'error', error: humanError(error) }))
+    void bridge
+      .getWorkspace()
+      .then((workspace) => dispatch({ type: 'workspace', path: workspace.path }))
       .catch((error: unknown) => dispatch({ type: 'error', error: humanError(error) }))
     const onDrag = (event: DragEvent): void => event.preventDefault()
     window.addEventListener('dragover', onDrag)
@@ -46,11 +56,11 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [dispatch])
 
-  if (!window.kirby) {
+  if (!window.inhale) {
     return (
       <main className="missing">
-        <KirbyMark size={84} />
-        <h1>Kirby runs in Electron</h1>
+        <InhaleMark size={84} />
+        <h1>Inhale runs in Electron</h1>
         <p>The renderer has no Node access. Open the desktop shell so the sealed runtime can start.</p>
       </main>
     )
@@ -63,13 +73,47 @@ export function App() {
     <div className="sky">
       <header className="topbar">
         <div className="brand">
-          <KirbyMark />
+          <InhaleMark />
           <div>
-            <h1>Kirby</h1>
-            <p>Inhale a playbook. Mount only what the turn needs.</p>
+            <h1>Inhale</h1>
+            <p>Inhale a playbook. Build in an open folder.</p>
           </div>
         </div>
         <div className="top-actions">
+          <button
+            className="button ghost workspace-pill"
+            type="button"
+            disabled={state.busy !== 'idle'}
+            title={state.workspace ?? 'Open a folder'}
+            onClick={() => {
+              const bridge = window.inhale
+              if (!bridge) return
+              void bridge
+                .chooseWorkspace()
+                .then((workspace) => dispatch({ type: 'workspace', path: workspace.path }))
+                .catch((error: unknown) => dispatch({ type: 'error', error: humanError(error) }))
+            }}
+          >
+            <span>Folder</span>
+            <strong>{folderName(state.workspace)}</strong>
+          </button>
+          {state.workspace ? (
+            <button
+              className="button ghost"
+              type="button"
+              disabled={state.busy !== 'idle'}
+              onClick={() => {
+                const bridge = window.inhale
+                if (!bridge) return
+                void bridge
+                  .clearWorkspace()
+                  .then(() => dispatch({ type: 'workspace', path: null }))
+                  .catch((error: unknown) => dispatch({ type: 'error', error: humanError(error) }))
+              }}
+            >
+              Close folder
+            </button>
+          ) : null}
           <button className="provider-pill" type="button" onClick={() => dispatch({ type: 'settings', open: true })}>
             <span>{providerName}</span>
             <strong>{model?.label ?? 'Choose a model'}</strong>
@@ -80,7 +124,7 @@ export function App() {
             type="button"
             disabled={state.busy !== 'idle'}
             onClick={() => {
-              const bridge = window.kirby
+              const bridge = window.inhale
               if (!bridge) return
               dispatch({ type: 'busy', busy: 'compress' })
               void bridge

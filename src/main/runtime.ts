@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync, statSync } from 'node:fs'
 import { ConfigStore } from '../core/config-store'
 import { Mutex } from '../core/mutex'
 import { isCancelled, completeChat, streamChat, visibleCompletion } from '../core/model-client'
@@ -10,13 +10,14 @@ import { actInstruction, distillInstruction, planInstruction } from '../core/pro
 import { redactSecrets } from '../core/redact'
 import { SkillRegistry } from '../core/registry'
 import { routeShards } from '../core/router'
-import { planSchema, type Plan } from '../core/schemas'
+import { planSchema, type BuildRequest, type Plan } from '../core/schemas'
 import { extractJsonObject } from '../core/json'
 import { createAnswerFilter } from '../core/stream-filter'
 import { buildSnapshot } from '../core/snapshot'
 import { compressDeterministic, needsCompression } from '../core/compressor'
 import { verifyMutation } from '../core/verifier'
 import { countTokens } from '../core/tokenizer'
+import { applyWorkspaceBuild, type BuildOutcome } from '../core/workspace'
 import { IngestionPool } from './workers/pool'
 import type { GraphSnapshot, ProviderId, TelemetryEvent, TurnResult } from '../shared/types'
 
@@ -29,7 +30,7 @@ export interface RuntimeOptions {
   pool?: IngestionPool
 }
 
-export class KirbyRuntime {
+export class InhaleRuntime {
   private readonly registry: SkillRegistry
   private readonly config: ConfigStore
   private readonly identityPath: string
@@ -39,6 +40,7 @@ export class KirbyRuntime {
   private readonly mutex = new Mutex()
   private mounted: Array<{ id: string; score: number }> = []
   private active: { requestId: string; controller: AbortController } | null = null
+  private workspace: string | null = null
 
   constructor(options: RuntimeOptions) {
     this.registry = options.registry
@@ -97,6 +99,26 @@ export class KirbyRuntime {
 
   cancel(requestId: string): void {
     if (this.active?.requestId === requestId) this.active.controller.abort()
+  }
+
+  workspaceInfo(): { path: string | null } {
+    return { path: this.workspace }
+  }
+
+  setWorkspace(folder: string): { path: string } {
+    if (this.active) throw new Error('Wait for the turn to finish before changing folders.')
+    const resolved = realpathSync(folder)
+    if (!statSync(resolved).isDirectory()) throw new Error('Open a folder, not a file.')
+    this.workspace = resolved
+    this.emit({ kind: 'workspace', path: resolved })
+    return { path: resolved }
+  }
+
+  clearWorkspace(): { path: null } {
+    if (this.active) throw new Error('Wait for the turn to finish before closing the folder.')
+    this.workspace = null
+    this.emit({ kind: 'workspace', path: null })
+    return { path: null }
   }
 
   async compressBloated(): Promise<GraphSnapshot> {
@@ -246,6 +268,7 @@ export class KirbyRuntime {
         commitBody: (commit: EditCommit) => {
           this.registry.commit(commit.id, commit.body, commit.verification, commit.reason)
         },
+        applyBuild: (request) => this.applyWorkspace(request),
         distill:
           mode === 'cloud' && apiKey
             ? async (body) => {
@@ -309,7 +332,7 @@ export class KirbyRuntime {
     signal: AbortSignal
   ): Promise<unknown> {
     if (mode === 'offline' || !apiKey) return offlinePlan(prompt, mounted)
-    const messages = buildMessages(identity, mounted, planInstruction(prompt, mounted.map((shard) => shard.id)))
+    const messages = buildMessages(identity, mounted, planInstruction(prompt, mounted.map((shard) => shard.id), Boolean(this.workspace)))
     const first = visibleCompletion(
       await completeChat({
         provider,
@@ -365,7 +388,7 @@ export class KirbyRuntime {
         apiKey,
         messages: buildMessages(identity, mounted, actInstruction(prompt, plan)),
         temperature: 0.2,
-        maxTokens: 2000,
+        maxTokens: plan.needsBuild ? 8000 : 2000,
         signal
       },
       (chunk) => {
@@ -386,6 +409,17 @@ export class KirbyRuntime {
 
   private identity(): string {
     return readFileSync(this.identityPath, 'utf8')
+  }
+
+  private async applyWorkspace(request: BuildRequest): Promise<BuildOutcome> {
+    if (!this.workspace) throw new Error('Open a folder before files can be written.')
+    const apiKey = this.config.getKey(this.config.publicView().provider)
+    const outcome = await applyWorkspaceBuild(this.workspace, request, this.active?.controller.signal)
+    return {
+      ...outcome,
+      output: redactSecrets(outcome.output, apiKey ?? undefined),
+      reasons: outcome.reasons.map((reason) => redactSecrets(reason, apiKey ?? undefined))
+    }
   }
 }
 

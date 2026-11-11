@@ -15,7 +15,7 @@ import {
   turnSchema
 } from '../core/schemas'
 import { channels } from '../shared/channels'
-import { KirbyRuntime } from './runtime'
+import { InhaleRuntime } from './runtime'
 
 function assertSender(event: IpcMainInvokeEvent): void {
   const url = event.senderFrame?.url ?? ''
@@ -34,7 +34,7 @@ function explain(error: unknown): Error {
 }
 
 export function registerIpc(options: {
-  runtime: KirbyRuntime
+  runtime: InhaleRuntime
   config: ConfigStore
   getWindow: () => BrowserWindow | null
 }): void {
@@ -76,8 +76,21 @@ export function registerIpc(options: {
     const file = chosen.filePaths[0]
     if (chosen.canceled || !file) return null
     const content = readFileSync(file, 'utf8')
-    if (content.length > 1_500_000) throw new Error('That playbook is larger than Kirby will inhale.')
+    if (content.length > 1_500_000) throw new Error('That playbook is larger than Inhale will inhale.')
     return runtime.ingestText(basename(file), content)
+  })
+  handle(channels.workspaceGet, () => runtime.workspaceInfo())
+  handle(channels.workspaceClear, () => runtime.clearWorkspace())
+  handle(channels.workspaceChoose, async () => {
+    const win = getWindow()
+    const dialogOptions: OpenDialogOptions = {
+      title: 'Open a folder to build in',
+      properties: ['openDirectory', 'createDirectory']
+    }
+    const chosen = win ? await dialog.showOpenDialog(win, dialogOptions) : await dialog.showOpenDialog(dialogOptions)
+    const folder = chosen.filePaths[0]
+    if (chosen.canceled || !folder) return runtime.workspaceInfo()
+    return runtime.setWorkspace(folder)
   })
   handle(channels.turnRun, (payload) => runtime.runTurn(turnSchema.parse(payload).prompt))
   handle(channels.turnCancel, (payload) => {

@@ -9,7 +9,7 @@ export function SettingsSheet() {
   const config = state.config
   if (!state.settingsOpen || !config) return null
   const models = config.catalog.filter((model) => model.provider === config.provider)
-  const bridge = window.kirby
+  const bridge = window.inhale
 
   async function chooseProvider(next: ProviderId): Promise<void> {
     if (!bridge) return
@@ -42,7 +42,7 @@ export function SettingsSheet() {
             </button>
           ))}
         </div>
-        <p className="fine">Endpoint is fixed. Kirby will not send a key anywhere else.</p>
+        <p className="fine">Endpoint is fixed. Inhale will not send a key anywhere else.</p>
         <code className="endpoint">{config.endpoints[config.provider]}</code>
         <ul className="model-list">
           {models.map((model) => (

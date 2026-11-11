@@ -63,8 +63,8 @@ function headers(provider: ProviderId, apiKey: string): Record<string, string> {
     'Content-Type': 'application/json'
   }
   if (provider === 'openrouter') {
-    result['HTTP-Referer'] = 'https://kirby.local'
-    result['X-Title'] = 'Kirby'
+    result['HTTP-Referer'] = 'https://inhale.local'
+    result['X-Title'] = 'Inhale'
   }
   return result
 }

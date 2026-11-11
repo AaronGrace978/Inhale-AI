@@ -6,18 +6,18 @@ import { redactSecrets } from '../core/redact'
 import { SkillRegistry } from '../core/registry'
 import { channels } from '../shared/channels'
 import { registerIpc } from './ipc'
-import { KirbyRuntime } from './runtime'
+import { InhaleRuntime } from './runtime'
 import { createElectronSealer } from './sealer'
 import { contentSecurityPolicy, SECURE_WEB_PREFERENCES } from './security'
 
-app.setName('Kirby')
+app.setName('Inhale')
 
 process.on('uncaughtException', (error) => {
-  console.error('kirby', redactSecrets(error.message))
+  console.error('inhale', redactSecrets(error.message))
 })
 process.on('unhandledRejection', (reason) => {
   const message = reason instanceof Error ? reason.message : 'unhandled rejection'
-  console.error('kirby', redactSecrets(message))
+  console.error('inhale', redactSecrets(message))
 })
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
@@ -26,7 +26,7 @@ if (!gotSingleInstanceLock) {
 }
 
 let mainWindow: BrowserWindow | null = null
-let runtime: KirbyRuntime | null = null
+let runtime: InhaleRuntime | null = null
 
 function paths(): { registry: string; config: string; sealKey: string; identity: string; sample: string } {
   const user = app.getPath('userData')
@@ -84,7 +84,7 @@ function createWindow(): BrowserWindow {
     minHeight: 740,
     show: false,
     backgroundColor: '#140810',
-    title: 'Kirby',
+    title: 'Inhale',
     autoHideMenuBar: true,
     webPreferences: {
       ...SECURE_WEB_PREFERENCES,
@@ -106,7 +106,7 @@ function broadcast(event: unknown): void {
 if (gotSingleInstanceLock) app.whenReady().then(() => {
   const location = paths()
   if (!existsSync(location.identity) || !existsSync(location.sample)) {
-    dialog.showErrorBox('Kirby', 'The locked identity core or the sample playbook is missing.')
+    dialog.showErrorBox('Inhale', 'The locked identity core or the sample playbook is missing.')
     app.quit()
     return
   }
@@ -114,7 +114,7 @@ if (gotSingleInstanceLock) app.whenReady().then(() => {
   installContentSecurityPolicy()
   const config = new ConfigStore(location.config, createElectronSealer(location.sealKey))
   const registry = new SkillRegistry(location.registry)
-  runtime = new KirbyRuntime({
+  runtime = new InhaleRuntime({
     registry,
     config,
     identityPath: location.identity,

@@ -210,7 +210,7 @@ export function stripPersona(markdown: string): StripReport {
     const cleaned = parts
       .map((part, partIndex) => {
         if (partIndex % 2 === 1) return part
-        const result = cleanProse(part.replace(/<!--(?!\s*kirby:atomic\b)[\s\S]*?-->/g, ''))
+        const result = cleanProse(part.replace(/<!--(?!\s*inhale:atomic\b)[\s\S]*?-->/g, ''))
         removedClaims += result.removedClaims
         return result.text
       })

@@ -14,7 +14,7 @@ const FORBIDDEN = /\b(process|require|import|fetch|child_process|worker_threads|
 export function runSandboxedJs(code: string, timeoutMs = 1500): SandboxResult {
   if (code.length > 20_000) return { exitCode: 1, error: 'Verification script is too large.' }
   if (FORBIDDEN.test(code)) return { exitCode: 1, error: 'Verification script asked for a forbidden API.' }
-  const directory = mkdtempSync(join(tmpdir(), 'kirby-verify-'))
+  const directory = mkdtempSync(join(tmpdir(), 'inhale-verify-'))
   const file = join(directory, 'check.js')
   try {
     writeFileSync(file, `'use strict';\n${code}\n`, { encoding: 'utf8', mode: 0o600 })

@@ -126,7 +126,7 @@ function pack(pieces: Piece[]): Piece[][] {
 function sectionPieces(section: Section): Piece[] {
   const rendered = stringifyMarkdown(section.nodes).trim()
   if (!rendered) return []
-  const atomic = rendered.includes('<!-- kirby:atomic -->')
+  const atomic = rendered.includes('<!-- inhale:atomic -->')
   const title = section.title || 'Skill'
   return splitParagraphs(pieceFrom(title, rendered, atomic))
 }
@@ -140,7 +140,7 @@ export function shardMarkdown(markdown: string, source: string): ShardDraft[] {
     const body = group
       .map((piece) => piece.body.trim())
       .join('\n\n')
-      .replaceAll('<!-- kirby:atomic -->', '')
+      .replaceAll('<!-- inhale:atomic -->', '')
       .replace(/\n{3,}/g, '\n\n')
       .trim()
     const normalized = ensureHeading(title, body)

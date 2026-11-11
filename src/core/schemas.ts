@@ -5,7 +5,15 @@ export const planSchema = z.object({
   steps: z.array(z.string().trim().min(1).max(400)).min(1).max(6),
   needsShardEdit: z.boolean(),
   targetShardId: z.string().trim().min(1).max(80).nullable(),
-  successCriteria: z.array(z.string().trim().min(1).max(300)).min(1).max(5)
+  successCriteria: z.array(z.string().trim().min(1).max(300)).min(1).max(5),
+  needsBuild: z.boolean().default(false),
+  verifyCommand: z
+    .string()
+    .trim()
+    .max(400)
+    .nullable()
+    .optional()
+    .transform((value) => (value ? value : null))
 })
 
 export type Plan = z.infer<typeof planSchema>
@@ -17,6 +25,33 @@ export const proposalSchema = z.object({
 })
 
 export type Proposal = z.infer<typeof proposalSchema>
+
+export const buildSchema = z
+  .object({
+    summary: z.string().trim().min(1).max(500),
+    files: z
+      .array(
+        z.object({
+          path: z.string().trim().min(1).max(240),
+          content: z.string().max(250_000)
+        })
+      )
+      .max(24)
+      .default([]),
+    delete: z.array(z.string().trim().min(1).max(240)).max(8).default([]),
+    command: z
+      .string()
+      .trim()
+      .max(400)
+      .nullable()
+      .optional()
+      .transform((value) => (value ? value : null))
+  })
+  .refine((value) => value.files.length > 0 || value.delete.length > 0, {
+    message: 'A build needs at least one file change.'
+  })
+
+export type BuildRequest = z.infer<typeof buildSchema>
 
 const providerSchema = z.enum(['ollama-cloud', 'openrouter'])
 

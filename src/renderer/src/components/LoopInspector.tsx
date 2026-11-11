@@ -17,6 +17,13 @@ export function LoopInspector() {
           <h2>Plan → Act → Verify</h2>
         </div>
       </header>
+      {state.build ? (
+        <pre className="build-log">
+          {`${state.build.decision} · ${state.build.summary}\n`}
+          {state.build.command ? `$ ${state.build.command}\n` : 'No verify command.\n'}
+          {state.build.output || state.build.reasons.join('\n')}
+        </pre>
+      ) : null}
       <ol className="timeline" ref={timeline}>
         {state.pav.length === 0 ? <li className="wait">The state machine is quiet.</li> : null}
         {state.pav.map((entry) => (

@@ -1,6 +1,16 @@
 import { createContext, useContext, useEffect, useMemo, useReducer, type ReactNode } from 'react'
 import type { DiffPayload, GraphSnapshot, IngestStage, PavState, PublicConfig, ShardDetail, TelemetryEvent } from '../../shared/types'
 
+export interface BuildLog {
+  requestId: string
+  summary: string
+  decision: 'COMMITTED' | 'REJECTED'
+  command: string | null
+  exitCode: number | null
+  output: string
+  reasons: string[]
+}
+
 const STAGES: IngestStage[] = ['received', 'parsed', 'stripped', 'sharded', 'compressed', 'manifest', 'done']
 
 export interface PavEntry {
@@ -27,6 +37,8 @@ interface State {
   mode: 'cloud' | 'offline' | null
   modeDetail: string
   requestId: string | null
+  workspace: string | null
+  build: BuildLog | null
 }
 
 type Action =
@@ -39,6 +51,7 @@ type Action =
   | { type: 'shard'; shard: ShardDetail | null }
   | { type: 'diff'; index: number }
   | { type: 'request'; requestId: string | null }
+  | { type: 'workspace'; path: string | null }
 
 const initial: State = {
   config: null,
@@ -56,7 +69,9 @@ const initial: State = {
   busy: 'idle',
   mode: null,
   modeDetail: 'Seal a cloud key, or run an offline rehearsal. The gate still decides every write.',
-  requestId: null
+  requestId: null,
+  workspace: null,
+  build: null
 }
 
 function stageRank(stage: IngestStage | null): number {
@@ -73,6 +88,7 @@ function reduce(state: State, action: Action): State {
   if (action.type === 'shard') return { ...state, shard: action.shard }
   if (action.type === 'diff') return { ...state, diffIndex: action.index }
   if (action.type === 'request') return { ...state, requestId: action.requestId }
+  if (action.type === 'workspace') return { ...state, workspace: action.path }
   const event = action.event
   if (event.kind === 'ingest') {
     if (event.stage === 'error') {
@@ -92,7 +108,7 @@ function reduce(state: State, action: Action): State {
     return { ...state, pav: [...state.pav, entry].slice(-48) }
   }
   if (event.kind === 'diff') {
-    const diffs = [...state.diffs, event].slice(-12)
+    const diffs = [...state.diffs, event].slice(-24)
     return { ...state, diffs, diffIndex: diffs.length - 1 }
   }
   if (event.kind === 'chat') {
@@ -114,6 +130,21 @@ function reduce(state: State, action: Action): State {
     }
   }
   if (event.kind === 'error') return { ...state, error: event.message }
+  if (event.kind === 'workspace') return { ...state, workspace: event.path }
+  if (event.kind === 'build') {
+    return {
+      ...state,
+      build: {
+        requestId: event.requestId,
+        summary: event.summary,
+        decision: event.decision,
+        command: event.command,
+        exitCode: event.exitCode,
+        output: event.output,
+        reasons: event.reasons
+      }
+    }
+  }
   return state
 }
 
@@ -122,7 +153,7 @@ const StateContext = createContext<{ state: State; dispatch: (action: Action) =>
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reduce, initial)
   useEffect(() => {
-    const bridge = window.kirby
+    const bridge = window.inhale
     if (!bridge) return
     return bridge.onTelemetry((event) => dispatch({ type: 'telemetry', event }))
   }, [])
@@ -132,7 +163,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
 export function useAppState(): { state: State; dispatch: (action: Action) => void } {
   const value = useContext(StateContext)
-  if (!value) throw new Error('Kirby state is missing.')
+  if (!value) throw new Error('Inhale state is missing.')
   return value
 }
 

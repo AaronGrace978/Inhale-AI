@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +21,7 @@ import { runSandboxedJs } from '../src/core/sandbox'
 import { verifyMutation } from '../src/core/verifier'
 import { SECURE_WEB_PREFERENCES } from '../src/main/security'
 import { runPlanActVerify, type EditCommit } from '../src/core/pav'
+import { applyWorkspaceBuild, resolveWorkspacePath } from '../src/core/workspace'
 import type { TelemetryEvent } from '../src/shared/types'
 
 const roots: string[] = []
@@ -31,7 +32,7 @@ afterEach(() => {
 })
 
 function tempDir(): string {
-  const directory = mkdtempSync(join(tmpdir(), 'kirby-'))
+  const directory = mkdtempSync(join(tmpdir(), 'inhale-'))
   roots.push(directory)
   return directory
 }
@@ -216,7 +217,7 @@ describe('plan act verify', () => {
     expect(clean.events.some((event) => event.kind === 'pav' && event.state === 'COMMITTED')).toBe(true)
 
     const extra = Array.from({ length: 36 }, (_, index) => `- Extra detail ${index} restates the same rule.`).join('\n')
-    const bloated = host(`<answer>Still Kirby.</answer><proposal>${JSON.stringify({
+    const bloated = host(`<answer>Still Inhale.</answer><proposal>${JSON.stringify({
       shardId: 'reproduce-a-failure-abc123',
       markdown: `${skill}\n${extra}`,
       rationale: 'Make the shard longer.'
@@ -256,6 +257,104 @@ describe('plan act verify', () => {
       distill: null
     })
     expect(status).toBe('rejected')
+  })
+
+  it('rejects a build when no folder is open', async () => {
+    const closed = host(
+      `<answer>Nothing written.</answer><build>${JSON.stringify({
+        summary: 'Page',
+        files: [{ path: 'index.html', content: '<h1>Inhale</h1>' }]
+      })}</build>`
+    )
+    await expect(closed.run).resolves.toBe('rejected')
+    expect(closed.commits).toHaveLength(0)
+  })
+
+  it('writes a folder build through the gate', async () => {
+    const root = tempDir()
+    const events: TelemetryEvent[] = []
+    const status = await runPlanActVerify({
+      requestId: '00000000-0000-4000-8000-000000000003',
+      prompt: 'build a page',
+      signal: new AbortController().signal,
+      mounted: [],
+      emit: (event) => events.push(event),
+      plan: async () => ({
+        goal: 'Build a page',
+        steps: ['Write index.html'],
+        needsShardEdit: false,
+        targetShardId: null,
+        successCriteria: ['The file exists'],
+        needsBuild: true,
+        verifyCommand: null
+      }),
+      act: async () =>
+        `<answer>Built the page.</answer><build>${JSON.stringify({
+          summary: 'Page',
+          files: [{ path: 'index.html', content: '<h1>Inhale</h1>\n' }],
+          command: null
+        })}</build>`,
+      loadBody: () => null,
+      commitBody: () => {
+        throw new Error('should not write a shard')
+      },
+      distill: null,
+      applyBuild: (request) => applyWorkspaceBuild(root, request)
+    })
+    expect(status).toBe('committed')
+    expect(readFileSync(join(root, 'index.html'), 'utf8')).toContain('Inhale')
+    expect(events.some((event) => event.kind === 'build' && event.decision === 'COMMITTED')).toBe(true)
+  })
+})
+
+describe('workspace build', () => {
+  const ok = process.platform === 'win32' ? 'exit /b 0' : 'true'
+  const bad = process.platform === 'win32' ? 'exit /b 3' : 'false'
+
+  it('keeps a file inside the folder and refuses a path that escapes', async () => {
+    const root = tempDir()
+    expect(() => resolveWorkspacePath(root, '../outside.txt')).toThrow(/workspace/i)
+    const outcome = await applyWorkspaceBuild(root, {
+      summary: 'Hello',
+      files: [{ path: 'index.html', content: '<h1>Inhale</h1>\n' }],
+      delete: [],
+      command: null
+    })
+    expect(outcome.ok).toBe(true)
+    expect(readFileSync(join(root, 'index.html'), 'utf8')).toContain('Inhale')
+    await expect(
+      applyWorkspaceBuild(root, {
+        summary: 'Escape',
+        files: [{ path: '../outside.txt', content: 'no' }],
+        delete: [],
+        command: null
+      })
+    ).rejects.toThrow(/workspace/i)
+  })
+
+  it('rolls back when the verify command fails', async () => {
+    const root = tempDir()
+    writeFileSync(join(root, 'keep.txt'), 'before\n')
+    const outcome = await applyWorkspaceBuild(root, {
+      summary: 'Replace',
+      files: [
+        { path: 'keep.txt', content: 'after\n' },
+        { path: 'new.txt', content: 'new\n' }
+      ],
+      delete: [],
+      command: bad
+    })
+    expect(outcome.ok).toBe(false)
+    expect(readFileSync(join(root, 'keep.txt'), 'utf8')).toBe('before\n')
+    expect(existsSync(join(root, 'new.txt'))).toBe(false)
+    const kept = await applyWorkspaceBuild(root, {
+      summary: 'Replace',
+      files: [{ path: 'keep.txt', content: 'after\n' }],
+      delete: [],
+      command: ok
+    })
+    expect(kept.ok).toBe(true)
+    expect(readFileSync(join(root, 'keep.txt'), 'utf8')).toBe('after\n')
   })
 })
 
@@ -313,7 +412,7 @@ describe('model client', () => {
       const stream = new ReadableStream({
         start(controller) {
           controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n'))
-          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":" Kirby"}}]}\n\n'))
+          controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":" Inhale"}}]}\n\n'))
           controller.enqueue(encoder.encode('data: [DONE]\n\n'))
           controller.close()
         }
@@ -333,7 +432,7 @@ describe('model client', () => {
       },
       () => undefined
     )
-    expect(text.content).toBe('Hi Kirby')
+    expect(text.content).toBe('Hi Inhale')
     expect(seen.url).toBe('https://ollama.com/v1/chat/completions')
     expect(seen.body).not.toContain(secret)
     expect(seen.authorization).toBe(`Bearer ${secret}`)
@@ -389,6 +488,8 @@ describe('stream filter and diff', () => {
     const first = filter.push('<ans')
     const second = filter.push('wer>Hello</answer><proposal>{"shardId":"a"}</proposal>')
     expect(first + second + filter.flush()).toBe('Hello')
+    const hidden = createAnswerFilter()
+    expect(hidden.push('<answer>Hi</answer><build>{"summary":"x"}</build>') + hidden.flush()).toBe('Hi')
     const raw = createAnswerFilter()
     expect(raw.push('A plain answer that is definitely longer than eighty characters so the filter releases it.') + raw.flush()).toContain('plain answer')
   })

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { humanError } from '../format'
 import { useAppState } from '../state'
-import { KirbyMark } from './KirbyMark'
+import { InhaleMark } from './InhaleMark'
 
 function isMarkdown(file: File): boolean {
   return /\.(md|markdown)$/i.test(file.name)
@@ -10,16 +10,16 @@ function isMarkdown(file: File): boolean {
 export function Dropzone() {
   const { state, dispatch } = useAppState()
   const [hot, setHot] = useState(false)
-  const bridge = window.kirby
+  const bridge = window.inhale
 
   async function ingestFile(file: File): Promise<void> {
     if (!bridge) return
     if (!isMarkdown(file)) {
-      dispatch({ type: 'error', error: 'Kirby only inhales .md playbooks.' })
+      dispatch({ type: 'error', error: 'Inhale only inhales .md playbooks.' })
       return
     }
     if (file.size > 1_500_000) {
-      dispatch({ type: 'error', error: 'That playbook is larger than Kirby will inhale.' })
+      dispatch({ type: 'error', error: 'That playbook is larger than Inhale will inhale.' })
       return
     }
     dispatch({ type: 'busy', busy: 'ingest' })
@@ -56,7 +56,7 @@ export function Dropzone() {
         })()
       }}
     >
-      <KirbyMark size={72} />
+      <InhaleMark size={72} />
       <div>
         <h2>Drop a playbook</h2>
         <p>Vendor personas are stripped before a single shard is saved.</p>

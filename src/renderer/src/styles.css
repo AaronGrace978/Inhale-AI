@@ -75,7 +75,27 @@ button { cursor: pointer; }
 .brand p { margin: 2px 0 0; }
 .top-actions { display: flex; gap: 10px; align-items: center; }
 
-.kirby-mark { filter: drop-shadow(0 8px 12px rgba(255, 61, 138, 0.35)); animation: float 4.8s ease-in-out infinite; }
+.mark { filter: drop-shadow(0 8px 12px rgba(255, 61, 138, 0.35)); animation: float 4.8s ease-in-out infinite; }
+.workspace-pill { max-width: 240px; }
+.workspace-pill strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+.build-log {
+  margin: 8px 0 0;
+  max-height: 96px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--mono);
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: 12px;
+  padding: 8px;
+  color: var(--blush);
+}
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
@@ -428,5 +448,5 @@ button { cursor: pointer; }
   .gauge-figure strong { font-size: 48px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .kirby-mark, .caret { animation: none; }
+  .mark, .caret { animation: none; }
 }

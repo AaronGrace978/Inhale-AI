@@ -171,6 +171,20 @@ export type TelemetryEvent =
       kind: 'error'
       message: string
     }
+  | {
+      kind: 'workspace'
+      path: string | null
+    }
+  | {
+      kind: 'build'
+      requestId: string
+      summary: string
+      decision: 'COMMITTED' | 'REJECTED'
+      command: string | null
+      exitCode: number | null
+      output: string
+      reasons: string[]
+    }
 
 export interface TurnResult {
   requestId: string
@@ -178,7 +192,11 @@ export interface TurnResult {
   mode: 'cloud' | 'offline'
 }
 
-export interface KirbyApi {
+export interface WorkspaceInfo {
+  path: string | null
+}
+
+export interface InhaleApi {
   getConfig: () => Promise<PublicConfig>
   setProvider: (provider: ProviderId) => Promise<PublicConfig>
   setModel: (model: string) => Promise<PublicConfig>
@@ -192,5 +210,8 @@ export interface KirbyApi {
   runTurn: (prompt: string) => Promise<TurnResult>
   cancelTurn: (requestId: string) => Promise<void>
   compressBloated: () => Promise<GraphSnapshot>
+  getWorkspace: () => Promise<WorkspaceInfo>
+  chooseWorkspace: () => Promise<WorkspaceInfo>
+  clearWorkspace: () => Promise<WorkspaceInfo>
   onTelemetry: (listener: (event: TelemetryEvent) => void) => () => void
 }

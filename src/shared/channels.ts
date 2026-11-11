@@ -1,18 +1,21 @@
 export const channels = {
-  configGet: 'kirby:config:get',
-  configSetProvider: 'kirby:config:set-provider',
-  configSetModel: 'kirby:config:set-model',
-  configSetKey: 'kirby:config:set-key',
-  configClearKey: 'kirby:config:clear-key',
-  graphGet: 'kirby:graph:get',
-  shardRead: 'kirby:shard:read',
-  ingest: 'kirby:ingest',
-  ingestDialog: 'kirby:ingest:dialog',
-  ingestSample: 'kirby:ingest:sample',
-  turnRun: 'kirby:turn:run',
-  turnCancel: 'kirby:turn:cancel',
-  compress: 'kirby:compress',
-  telemetry: 'kirby:telemetry'
+  configGet: 'inhale:config:get',
+  configSetProvider: 'inhale:config:set-provider',
+  configSetModel: 'inhale:config:set-model',
+  configSetKey: 'inhale:config:set-key',
+  configClearKey: 'inhale:config:clear-key',
+  graphGet: 'inhale:graph:get',
+  shardRead: 'inhale:shard:read',
+  ingest: 'inhale:ingest',
+  ingestDialog: 'inhale:ingest:dialog',
+  ingestSample: 'inhale:ingest:sample',
+  turnRun: 'inhale:turn:run',
+  turnCancel: 'inhale:turn:cancel',
+  compress: 'inhale:compress',
+  workspaceGet: 'inhale:workspace:get',
+  workspaceChoose: 'inhale:workspace:choose',
+  workspaceClear: 'inhale:workspace:clear',
+  telemetry: 'inhale:telemetry'
 } as const
 
 export type ChannelName = (typeof channels)[keyof typeof channels]

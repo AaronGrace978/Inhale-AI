@@ -22,9 +22,14 @@ export function createAnswerFilter(): { push: (chunk: string) => string; flush: 
 
   const takeRaw = (): string => {
     const lower = buffer.toLowerCase()
-    const proposal = lower.indexOf('<proposal>')
-    if (proposal >= 0) {
-      const output = buffer.slice(0, proposal)
+    const hidden = ['<proposal>', '<build>']
+    let cut = -1
+    for (const tag of hidden) {
+      const found = lower.indexOf(tag)
+      if (found >= 0 && (cut < 0 || found < cut)) cut = found
+    }
+    if (cut >= 0) {
+      const output = buffer.slice(0, cut)
       buffer = ''
       mode = 'drop'
       return output
@@ -45,7 +50,7 @@ export function createAnswerFilter(): { push: (chunk: string) => string; flush: 
         if (open >= 0) {
           mode = 'answer'
           buffer = buffer.slice(open + '<answer>'.length)
-        } else if (buffer.length > 80 && !lower.includes('<ans') && !lower.includes('<pro')) {
+        } else if (buffer.length > 80 && !lower.includes('<ans') && !lower.includes('<pro') && !lower.includes('<bui')) {
           mode = 'raw'
         } else {
           return ''

@@ -621,7 +621,7 @@ if (2 + 2 !== 4) throw new Error('arithmetic drifted')
 
 ## Status ritual
 
-<!-- kirby:atomic -->
+<!-- inhale:atomic -->
 
 - Keep one status line before an edit.
 - Name the check that the edit must still pass.

@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 import { channels } from '../shared/channels'
-import type { KirbyApi, ProviderId, TelemetryEvent } from '../shared/types'
+import type { InhaleApi, ProviderId, TelemetryEvent } from '../shared/types'
 
 function isTelemetry(payload: unknown): payload is TelemetryEvent {
   return Boolean(payload) && typeof payload === 'object' && typeof (payload as { kind?: unknown }).kind === 'string'
 }
 
-const api: KirbyApi = {
+const api: InhaleApi = {
   getConfig: () => ipcRenderer.invoke(channels.configGet),
   setProvider: (provider: ProviderId) => ipcRenderer.invoke(channels.configSetProvider, { provider }),
   setModel: (model: string) => ipcRenderer.invoke(channels.configSetModel, { model }),
@@ -20,6 +20,9 @@ const api: KirbyApi = {
   runTurn: (prompt: string) => ipcRenderer.invoke(channels.turnRun, { prompt }),
   cancelTurn: (requestId: string) => ipcRenderer.invoke(channels.turnCancel, { requestId }),
   compressBloated: () => ipcRenderer.invoke(channels.compress),
+  getWorkspace: () => ipcRenderer.invoke(channels.workspaceGet),
+  chooseWorkspace: () => ipcRenderer.invoke(channels.workspaceChoose),
+  clearWorkspace: () => ipcRenderer.invoke(channels.workspaceClear),
   onTelemetry: (listener) => {
     const wrapped = (_event: IpcRendererEvent, payload: unknown): void => {
       if (isTelemetry(payload)) listener(payload)
@@ -31,4 +34,4 @@ const api: KirbyApi = {
   }
 }
 
-contextBridge.exposeInMainWorld('kirby', api)
+contextBridge.exposeInMainWorld('inhale', api)

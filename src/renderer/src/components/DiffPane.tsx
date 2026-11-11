@@ -51,7 +51,7 @@ export function DiffPane() {
           {aligned.truncated ? <p className="fine">Showing the first 500 changed rows.</p> : null}
         </>
       ) : (
-        <p className="placeholder">Compression and rejected rewrites land here, side by side, before anything touches disk.</p>
+        <p className="placeholder">Shard rewrites and folder builds land here. A failed check is rolled back.</p>
       )}
     </section>
   )

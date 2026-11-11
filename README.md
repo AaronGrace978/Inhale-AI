@@ -1,7 +1,6 @@
-# Kirby
-<('-'<)
+# Inhale
 
-Kirby is a local-first desktop runtime. Drop a behavioral markdown playbook on it. The main process strips foreign personas, shards the remaining mechanics, and mounts at most two of them under a locked identity core. A Plan → Act → Verify loop can rewrite a shard only when an objective gate agrees.
+Inhale is a local-first desktop runtime. Drop a behavioral markdown playbook on it. The main process strips foreign personas, shards the remaining mechanics, and mounts at most two of them under a locked identity core. A Plan → Act → Verify loop can rewrite a shard only when an objective gate agrees. Open a folder and the same loop can write project files there.
 
 The window is pink and dark. The model call, if you seal a key, goes to **Ollama Cloud** or **OpenRouter** and nowhere else.
 
@@ -64,6 +63,10 @@ A proposed shard edit is written only when all of these hold:
 - The edit does not grow the shard unless the pass rate actually improves, and it does not push a fitting shard past 600 tokens.
 
 Failed edits stay in the diff viewer and off disk. A shard that crosses 600 tokens gets a compression pass under the same gate.
+
+## Build
+
+Open a folder from the top bar. A turn can write text files inside that folder and run one verify command there. Paths cannot leave the folder, and the command does not receive API keys. If the command fails, the files are rolled back and the diff stays on screen. Without a key, **Build a page** is an offline rehearsal that still writes `index.html` when a folder is open.
 
 ## Try it
 

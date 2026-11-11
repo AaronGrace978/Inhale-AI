@@ -125,7 +125,7 @@ function GraphCanvas() {
       nodesConnectable={false}
       proOptions={{ hideAttribution: false }}
       onNodeClick={(_event, node) => {
-        const bridge = window.kirby
+        const bridge = window.inhale
         if (!bridge) return
         void bridge
           .readShard(node.id)

@@ -10,6 +10,7 @@ export interface CompletionRequest {
   temperature: number
   maxTokens: number
   json?: boolean
+  think?: boolean
   signal: AbortSignal
 }
 
@@ -78,6 +79,7 @@ function requestBody(request: CompletionRequest, stream: boolean): string {
     stream
   }
   if (request.json) body.response_format = { type: 'json_object' }
+  if (request.think === false) body.reasoning_effort = 'none'
   return JSON.stringify(body)
 }
 
@@ -94,7 +96,7 @@ function textFromContent(content: unknown): string {
 }
 
 function readReasoning(record: Record<string, unknown>): string {
-  for (const key of ['reasoning', 'reasoning_content']) {
+  for (const key of ['reasoning', 'reasoning_content', 'thinking']) {
     const value = record[key]
     if (typeof value === 'string') return value
   }
@@ -106,14 +108,16 @@ export function completionFromJson(payload: unknown): CompletionText {
   const choices = (payload as { choices?: unknown }).choices
   const choice = Array.isArray(choices) ? choices[0] : undefined
   if (!choice || typeof choice !== 'object') return { content: '', reasoning: '' }
-  const message = (choice as { message?: unknown; delta?: unknown }).message
+  const message = (choice as { message?: unknown }).message
   const delta = (choice as { delta?: unknown }).delta
-  const source = (message && typeof message === 'object' ? message : delta) as Record<string, unknown> | undefined
-  if (!source) return { content: '', reasoning: '' }
-  return {
-    content: textFromContent(source.content),
-    reasoning: readReasoning(source)
-  }
+  const messageRecord = message && typeof message === 'object' ? (message as Record<string, unknown>) : undefined
+  const deltaRecord = delta && typeof delta === 'object' ? (delta as Record<string, unknown>) : undefined
+  const content =
+    textFromContent(deltaRecord?.content) ||
+    textFromContent(messageRecord?.content) ||
+    textFromContent((choice as { text?: unknown }).text)
+  const reasoning = `${deltaRecord ? readReasoning(deltaRecord) : ''}${messageRecord ? readReasoning(messageRecord) : ''}`
+  return { content, reasoning }
 }
 
 export function visibleCompletion(text: CompletionText): string {

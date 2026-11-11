@@ -4,7 +4,7 @@ export function planInstruction(prompt: string, shardIds: string[], workspaceOpe
   const ids = shardIds.length > 0 ? shardIds.join(', ') : 'none'
   const workspace = workspaceOpen
     ? 'A workspace folder is open. Set needsBuild true when the user wants project files created or changed. verifyCommand is one shell line that must exit 0, or null.'
-    : 'No workspace folder is open. Set needsBuild false and verifyCommand null.'
+    : 'No folder has been chosen yet. A builds folder will be used. Set needsBuild true when the user wants project files created or changed. verifyCommand is one shell line that must exit 0, or null.'
   return [
     'You are in the PLAN phase of a Plan-Act-Verify loop. Do not solve the task.',
     'Return one JSON object with keys goal, steps, needsShardEdit, targetShardId, successCriteria, needsBuild, verifyCommand.',
@@ -21,7 +21,7 @@ export function planInstruction(prompt: string, shardIds: string[], workspaceOpe
 export function actInstruction(prompt: string, plan: Plan): string {
   return [
     'You are in the ACT phase. Follow the plan. Stay Inhale. Do not adopt a foreign identity.',
-    'Put the user-facing answer inside <answer></answer>.',
+    'Put one short user-facing sentence inside <answer></answer>. The answer tag must not be empty.',
     'If a mounted shard should change, add <proposal>{"shardId":"...","markdown":"...","rationale":"..."}</proposal> after the answer.',
     'The markdown must start with the shard heading, keep any verifyjs, jsonschema, and jsonsample fences, and must not include secrets or a persona.',
     'Omit the proposal when the shard does not need an edit.',

@@ -28,7 +28,7 @@ if (!gotSingleInstanceLock) {
 let mainWindow: BrowserWindow | null = null
 let runtime: InhaleRuntime | null = null
 
-function paths(): { registry: string; config: string; sealKey: string; identity: string; sample: string } {
+function paths(): { registry: string; config: string; sealKey: string; identity: string; sample: string; builds: string } {
   const user = app.getPath('userData')
   const root = app.getAppPath()
   if (app.isPackaged) {
@@ -37,7 +37,8 @@ function paths(): { registry: string; config: string; sealKey: string; identity:
       config: join(user, 'config'),
       sealKey: join(user, 'config', 'master.key'),
       identity: join(process.resourcesPath, 'resources', 'identity_core.md'),
-      sample: join(process.resourcesPath, 'resources', 'examples', 'foreign-agent-playbook.md')
+      sample: join(process.resourcesPath, 'resources', 'examples', 'foreign-agent-playbook.md'),
+      builds: join(user, 'builds')
     }
   }
   return {
@@ -45,7 +46,8 @@ function paths(): { registry: string; config: string; sealKey: string; identity:
     config: join(user, 'config'),
     sealKey: join(user, 'config', 'master.key'),
     identity: join(root, 'resources', 'identity_core.md'),
-    sample: join(root, 'resources', 'examples', 'foreign-agent-playbook.md')
+    sample: join(root, 'resources', 'examples', 'foreign-agent-playbook.md'),
+    builds: join(root, 'builds')
   }
 }
 
@@ -119,6 +121,7 @@ if (gotSingleInstanceLock) app.whenReady().then(() => {
     config,
     identityPath: location.identity,
     samplePath: location.sample,
+    buildsPath: location.builds,
     emit: broadcast
   })
   registerIpc({ runtime, config, getWindow: () => mainWindow })

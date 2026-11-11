@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { COMPLETION_URLS, DEFAULT_MODELS, MODEL_CATALOG } from '../src/shared/catalog'
 import { alignDiff } from '../src/core/diffview'
 import { ingestDocument } from '../src/core/ingest'
-import { completeChat, streamChat } from '../src/core/model-client'
+import { completeChat, completionFromJson, streamChat } from '../src/core/model-client'
 import { buildMessages } from '../src/core/prompt'
 import { redactSecrets } from '../src/core/redact'
 import { SkillRegistry } from '../src/core/registry'
@@ -270,6 +270,99 @@ describe('plan act verify', () => {
     expect(closed.commits).toHaveLength(0)
   })
 
+  it('keeps a build when the answer tag is empty', async () => {
+    const root = tempDir()
+    const status = await runPlanActVerify({
+      requestId: '00000000-0000-4000-8000-000000000004',
+      prompt: 'build a page',
+      signal: new AbortController().signal,
+      mounted: [],
+      emit: () => undefined,
+      plan: async () => ({
+        goal: 'Build a page',
+        steps: ['Write index.html'],
+        needsShardEdit: false,
+        targetShardId: null,
+        successCriteria: ['The file exists'],
+        needsBuild: true,
+        verifyCommand: null
+      }),
+      act: async () =>
+        `<answer></answer><build>${JSON.stringify({
+          summary: 'Distiller page',
+          files: [{ path: 'index.html', content: '<h1>Inhale</h1>\n' }],
+          command: null
+        })}</build>`,
+      loadBody: () => null,
+      commitBody: () => {
+        throw new Error('should not write a shard')
+      },
+      distill: null,
+      applyBuild: (request) => applyWorkspaceBuild(root, request)
+    })
+    expect(status).toBe('committed')
+    expect(readFileSync(join(root, 'index.html'), 'utf8')).toContain('Inhale')
+  })
+
+  it('saves a bare html answer as index.html', async () => {
+    const root = tempDir()
+    const status = await runPlanActVerify({
+      requestId: '00000000-0000-4000-8000-000000000005',
+      prompt: 'build a page',
+      signal: new AbortController().signal,
+      mounted: [],
+      emit: () => undefined,
+      plan: async () => ({
+        goal: 'Build a page',
+        steps: ['Write the page'],
+        needsShardEdit: false,
+        targetShardId: null,
+        successCriteria: ['The file exists'],
+        needsBuild: true,
+        verifyCommand: null
+      }),
+      act: async () => '<answer><!doctype html><html><body><h1>Inhale</h1></body></html></answer>',
+      loadBody: () => null,
+      commitBody: () => {
+        throw new Error('should not write a shard')
+      },
+      distill: null,
+      applyBuild: (request) => applyWorkspaceBuild(root, request)
+    })
+    expect(status).toBe('committed')
+    expect(readFileSync(join(root, 'index.html'), 'utf8')).toContain('Inhale')
+  })
+
+  it('pulls a page out of a reply that quotes an empty answer tag', async () => {
+    const root = tempDir()
+    const status = await runPlanActVerify({
+      requestId: '00000000-0000-4000-8000-000000000006',
+      prompt: 'build a page',
+      signal: new AbortController().signal,
+      mounted: [],
+      emit: () => undefined,
+      plan: async () => ({
+        goal: 'Build a page',
+        steps: ['Write the page'],
+        needsShardEdit: false,
+        targetShardId: null,
+        successCriteria: ['The file exists'],
+        needsBuild: true,
+        verifyCommand: null
+      }),
+      act: async () =>
+        'Use <answer></answer> before the page.\n<!doctype html><html><body><h1>Inhale</h1></body></html>',
+      loadBody: () => null,
+      commitBody: () => {
+        throw new Error('should not write a shard')
+      },
+      distill: null,
+      applyBuild: (request) => applyWorkspaceBuild(root, request)
+    })
+    expect(status).toBe('committed')
+    expect(readFileSync(join(root, 'index.html'), 'utf8')).toContain('<h1>Inhale</h1>')
+  })
+
   it('writes a folder build through the gate', async () => {
     const root = tempDir()
     const events: TelemetryEvent[] = []
@@ -437,6 +530,13 @@ describe('model client', () => {
     expect(seen.body).not.toContain(secret)
     expect(seen.authorization).toBe(`Bearer ${secret}`)
     expect(seen.body).toContain('kimi-k3.1-pro')
+  })
+
+  it('reads a stream token when an empty message is also present', () => {
+    const text = completionFromJson({
+      choices: [{ message: { content: '' }, delta: { content: '<h1>Inhale</h1>' } }]
+    })
+    expect(text.content).toBe('<h1>Inhale</h1>')
   })
 
   it('redacts a key echoed by an error response', async () => {

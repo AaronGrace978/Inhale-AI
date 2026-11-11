@@ -42,13 +42,15 @@ export function parseAct(text: string): {
   build: BuildRequest | null
   hadBuild: boolean
 } {
-  const answerMatch = text.match(/<answer>([\s\S]*?)<\/answer>/i)
+  const answerMatch = firstFilledAnswer(text)
   const proposalMatch = text.match(/<proposal>([\s\S]*?)<\/proposal>/i)
   const buildMatch = text.match(/<build>([\s\S]*?)<\/build>/i)
   const answer = (
-    answerMatch
-      ? answerMatch[1]
-      : text.replace(/<proposal>[\s\S]*<\/proposal>/gi, '').replace(/<build>[\s\S]*<\/build>/gi, '')
+    answerMatch ??
+    text
+      .replace(/<proposal>[\s\S]*?<\/proposal>/gi, '')
+      .replace(/<build>[\s\S]*?<\/build>/gi, '')
+      .replace(/<\/?answer>/gi, '')
   ).trim()
   let proposal: Proposal | null = null
   const hadProposal = /<proposal>/i.test(text)
@@ -182,6 +184,40 @@ async function applyTurnBuild(host: PavHost, plan: Plan, build: BuildRequest): P
   }
 }
 
+function firstFilledAnswer(text: string): string | null {
+  const pattern = /<answer>([\s\S]*?)<\/answer>/gi
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(text))) {
+    if (match[1].trim().length >= 2) return match[1]
+  }
+  return null
+}
+
+function findPage(text: string): string | null {
+  const match = text.match(/<!doctype html[\s\S]*?<\/html>/i) ?? text.match(/<html[\s\S]*?<\/html>/i)
+  return match?.[0] ?? null
+}
+
+function recoverBuild(
+  parsed: { answer: string; build: BuildRequest | null; hadBuild: boolean },
+  plan: Plan
+): { answer: string; build: BuildRequest | null } {
+  let answer = parsed.answer.trim()
+  let build = parsed.build
+  if (answer.length < 2 && build) answer = build.summary
+  const page = !build && !parsed.hadBuild && plan.needsBuild ? findPage(answer) ?? findPage(parsed.answer) : null
+  if (!build && page) {
+    build = {
+      summary: plan.goal.slice(0, 180),
+      files: [{ path: 'index.html', content: page.endsWith('\n') ? page : `${page}\n` }],
+      delete: [],
+      command: plan.verifyCommand
+    }
+    answer = `Drafted index.html. ${plan.goal}`
+  }
+  return { answer, build }
+}
+
 export async function runPlanActVerify(host: PavHost): Promise<'committed' | 'rejected'> {
   const throwIfCancelled = (): void => {
     if (host.signal.aborted) {
@@ -225,14 +261,15 @@ export async function runPlanActVerify(host: PavHost): Promise<'committed' | 're
   }
 
   const parsedAct = parseAct(raw)
+  const recovered = recoverBuild(parsedAct, plan)
   host.emit(stamp(host.requestId, 'VERIFYING', 'Checking the answer and any shard edit against the gate.'))
-  const answerCheck = verifyAnswer(parsedAct.answer)
+  const answerCheck = verifyAnswer(recovered.answer)
   if (!answerCheck.ok) {
     host.emit({ kind: 'chat', requestId: host.requestId, phase: 'error', text: answerCheck.reasons.join(' ') })
     host.emit(stamp(host.requestId, 'REJECTED', answerCheck.reasons.join(' ')))
     return 'rejected'
   }
-  host.emit({ kind: 'chat', requestId: host.requestId, phase: 'done', text: parsedAct.answer })
+  host.emit({ kind: 'chat', requestId: host.requestId, phase: 'done', text: recovered.answer })
 
   if (parsedAct.hadProposal && !parsedAct.proposal) {
     host.emit(stamp(host.requestId, 'REJECTED', 'A shard edit was proposed but it was not valid JSON, so the registry was left unchanged.'))
@@ -242,16 +279,16 @@ export async function runPlanActVerify(host: PavHost): Promise<'committed' | 're
     host.emit(stamp(host.requestId, 'REJECTED', 'A build was proposed but it was not valid JSON, so the workspace was left unchanged.'))
     return 'rejected'
   }
-  if (parsedAct.proposal && parsedAct.build) {
+  if (parsedAct.proposal && recovered.build) {
     host.emit(stamp(host.requestId, 'REJECTED', 'A turn can rewrite a shard or write workspace files, not both. Nothing was written.'))
     return 'rejected'
   }
-  if (plan.needsBuild && !parsedAct.build) {
+  if (plan.needsBuild && !recovered.build) {
     host.emit(stamp(host.requestId, 'REJECTED', 'The plan said to build, but no files were proposed, so the workspace was left unchanged.'))
     return 'rejected'
   }
-  if (parsedAct.build) {
-    return applyTurnBuild(host, plan, parsedAct.build)
+  if (recovered.build) {
+    return applyTurnBuild(host, plan, recovered.build)
   }
 
   if (!parsedAct.proposal) {

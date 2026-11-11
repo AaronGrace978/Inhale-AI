@@ -7,4 +7,5 @@ coverage/
 .DS_Store
 skills_registry/*
 !skills_registry/.gitkeep
+builds/
 .electron-cache/

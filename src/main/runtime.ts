@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync, realpathSync, statSync } from 'node:fs'
+import { mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { ConfigStore } from '../core/config-store'
 import { Mutex } from '../core/mutex'
 import { isCancelled, completeChat, streamChat, visibleCompletion } from '../core/model-client'
@@ -26,6 +26,7 @@ export interface RuntimeOptions {
   config: ConfigStore
   identityPath: string
   samplePath: string
+  buildsPath: string
   emit: (event: TelemetryEvent) => void
   pool?: IngestionPool
 }
@@ -35,6 +36,7 @@ export class InhaleRuntime {
   private readonly config: ConfigStore
   private readonly identityPath: string
   private readonly samplePath: string
+  private readonly buildsPath: string
   private readonly emit: (event: TelemetryEvent) => void
   private readonly pool: IngestionPool
   private readonly mutex = new Mutex()
@@ -47,6 +49,7 @@ export class InhaleRuntime {
     this.config = options.config
     this.identityPath = options.identityPath
     this.samplePath = options.samplePath
+    this.buildsPath = options.buildsPath
     this.emit = options.emit
     this.pool = options.pool ?? new IngestionPool()
   }
@@ -389,6 +392,7 @@ export class InhaleRuntime {
         messages: buildMessages(identity, mounted, actInstruction(prompt, plan)),
         temperature: 0.2,
         maxTokens: plan.needsBuild ? 8000 : 2000,
+        think: false,
         signal
       },
       (chunk) => {
@@ -398,7 +402,18 @@ export class InhaleRuntime {
     )
     const tail = filter.flush()
     if (tail && result.content.trim()) this.emit({ kind: 'chat', requestId, phase: 'delta', text: tail })
-    return visibleCompletion(result)
+    if (result.content.trim().length >= 2) return result.content
+    const full = await completeChat({
+      provider,
+      model,
+      apiKey,
+      messages: buildMessages(identity, mounted, actInstruction(prompt, plan)),
+      temperature: 0.2,
+      maxTokens: plan.needsBuild ? 8000 : 2000,
+      think: false,
+      signal
+    })
+    return full.content.trim() || full.reasoning.trim()
   }
 
   private publish(): GraphSnapshot {
@@ -412,14 +427,24 @@ export class InhaleRuntime {
   }
 
   private async applyWorkspace(request: BuildRequest): Promise<BuildOutcome> {
-    if (!this.workspace) throw new Error('Open a folder before files can be written.')
+    const root = this.ensureWorkspace()
     const apiKey = this.config.getKey(this.config.publicView().provider)
-    const outcome = await applyWorkspaceBuild(this.workspace, request, this.active?.controller.signal)
+    const outcome = await applyWorkspaceBuild(root, request, this.active?.controller.signal)
     return {
       ...outcome,
       output: redactSecrets(outcome.output, apiKey ?? undefined),
       reasons: outcome.reasons.map((reason) => redactSecrets(reason, apiKey ?? undefined))
     }
+  }
+
+  private ensureWorkspace(): string {
+    if (this.workspace) return this.workspace
+    mkdirSync(this.buildsPath, { recursive: true })
+    const resolved = realpathSync(this.buildsPath)
+    if (!statSync(resolved).isDirectory()) throw new Error('Open a folder before files can be written.')
+    this.workspace = resolved
+    this.emit({ kind: 'workspace', path: resolved })
+    return resolved
   }
 }
 
